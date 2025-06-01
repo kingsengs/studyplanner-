@@ -1,89 +1,126 @@
 import streamlit as st
 import datetime
-import random
 
+st.set_page_config(page_title="Smart Study Planner", layout="centered")
 st.title("📚 Middle School Smart Study Planner")
 
-# Step 1: Input
-all_subjects = ["Math", "Science", "ELA", "Texas History", "Spanish", "Computer Science"]
+all_subjects = ["Math", "Science", "ELA", "Texas History", "Spanish", "Computer Science", "Art", "US History", "Digital Graphics & Animation"]
 
-subjects = st.multiselect(
-    "What subjects do you want to study today?", 
-    all_subjects
-)
+def time_input(label, value):
+    return st.time_input(label, value=value)
 
-home_time = st.time_input("What time do you get home?", value=datetime.time(16, 0))
-sleep_time = st.time_input("What time is bedtime?", value=datetime.time(21, 0))
+subjects = st.multiselect("What subjects do you want to study today?", all_subjects)
+home_time = time_input("What time did you get home?", value=datetime.time(16, 0))
+sleep_time = time_input("What time is your bedtime?", value=datetime.time(21, 0))
 
-exam_subject = st.selectbox(
-    "Do you have a test or homework due soon in any subject?", 
-    ["None"] + all_subjects
-)
+num_classes = st.number_input("How many special classes (e.g., Math Tuition, Karate, Yoga, Tennis) do you have today?", min_value=0, max_value=5, step=1)
+special_classes = []
+for i in range(num_classes):
+    class_name = st.text_input(f"Special class {i+1} name")
+    class_start = time_input(f"Start time for {class_name}", value=datetime.time(17, 0))
+    class_end = time_input(f"End time for {class_name}", value=datetime.time(18, 0))
+    special_classes.append((class_name, class_start, class_end))
 
-# Step 2: Time calculations
-start = datetime.datetime.combine(datetime.date.today(), home_time)
-end = datetime.datetime.combine(datetime.date.today(), sleep_time)
+test_subjects = st.multiselect("Do you have a test or homework due soon in any subject?", all_subjects)
 
-available_minutes = int((end - start).total_seconds() // 60)
-max_study_minutes = min(180, available_minutes - 30)  # cap at 3 hours, minus buffer
+# Button with just calendar icon
+generate = st.button("📅 Generate My Schedule")
 
-break_every = 30  # minutes
+if generate:
+    start = datetime.datetime.combine(datetime.date.today(), home_time)
+    end = datetime.datetime.combine(datetime.date.today(), sleep_time)
+    now = start
 
-# Fun eye-care tips
-eye_tips = [
-    "👓 Blink 10 times slowly to refresh your eyes!",
-    "🌳 Look outside at something green for 20 seconds!",
-    "💧 Splash your eyes with water if they feel dry!",
-    "🔄 Roll your eyes gently in a circle for 10 seconds!",
-    "🚶‍♀️ Stand up and stretch for a minute!",
-    "🦸‍♂️ Stare like a superhero—then relax!"
-]
+    me_time_end = now + datetime.timedelta(hours=1)
+    schedule = [(now, me_time_end, "🎮 Me Time - Relax and recharge!")]
+    now = me_time_end
 
-if not subjects:
-    st.warning("Please choose at least one subject.")
-elif max_study_minutes <= 0:
-    st.warning("Not enough time to plan a study schedule today.")
-else:
-    # Step 3: Weighted time allocation
-    weights = {s: 2 if s == exam_subject else 1 for s in subjects}
-    total_weight = sum(weights.values())
+    special_classes_sorted = sorted(special_classes, key=lambda x: x[1])
 
-    schedule = []
-    current_time = start
-    minutes_left = max_study_minutes
+    special_icons = {
+        "Yoga": "🧘‍♂️",
+        "Tennis": "🎾",
+        "Karate": "🥋",
+        "Math Tuition": "📐",
+    }
 
-    for subject in subjects:
-        subject_time = int((weights[subject] / total_weight) * max_study_minutes)
-        chunks = subject_time // break_every
+    for idx, (class_name, class_start, class_end) in enumerate(special_classes_sorted):
+        ready_buffer = datetime.timedelta(minutes=5)
+        commute = datetime.timedelta(minutes=15)
+        return_buffer = datetime.timedelta(minutes=15)
 
-        for _ in range(chunks):
-            if minutes_left < break_every:
-                break
+        before_class = datetime.datetime.combine(datetime.date.today(), class_start)
+        after_class = datetime.datetime.combine(datetime.date.today(), class_end)
+        icon = special_icons.get(class_name, "🎓")
 
-            # Study block
-            end_time = current_time + datetime.timedelta(minutes=break_every)
-            schedule.append((current_time.strftime("%I:%M %p"), end_time.strftime("%I:%M %p"), subject))
-            current_time = end_time
-            minutes_left -= break_every
-
-            # Eye break
-            break_end = current_time + datetime.timedelta(seconds=30)
-            fun_reminder = random.choice(eye_tips)
-            schedule.append((current_time.strftime("%I:%M %p"), break_end.strftime("%I:%M %p"), fun_reminder))
-            current_time = break_end
-
-    # Step 4: Display schedule
-    st.success("✅ Here's your personalized study plan for today!")
-
-    for start_time, end_time, activity in schedule:
-        if any(emoji in activity for emoji in ["👓", "🌳", "💧", "🔄", "🚶‍♀️", "🦸‍♂️"]):
-            st.markdown(
-                f'''<div style="background-color:#FFF3CD;padding:10px;border-radius:10px;">
-                <h4 style="color:#856404;">🕒 {start_time} - {end_time}: <b>{activity}</b></h4>
-                </div>''', 
-                unsafe_allow_html=True
-            )
+        if idx == 0:
+            ready_start = before_class - (ready_buffer + commute)
+            if now < ready_start:
+                schedule.append((now, ready_start, "---"))
+                now = ready_start
+            schedule.append((ready_start, before_class, f"🚌 Get ready & travel for {class_name}"))
         else:
-            st.write(f"🕒 {start_time} - {end_time}: **{activity}**")
+            prev_end = datetime.datetime.combine(datetime.date.today(), special_classes_sorted[idx - 1][2])
+            travel_start = prev_end
+            travel_end = before_class
+            schedule.append((travel_start, travel_end, f"🚌 Travel from previous class to {class_name}"))
 
-    st.info("✨ Tip: Follow the 20-20-20 rule – every 20 minutes, look 20 feet away for 20 seconds!")
+        schedule.append((before_class, after_class, f"{icon} {class_name} class"))
+
+        if idx == len(special_classes_sorted) - 1:
+            recovery_end = after_class + return_buffer
+            schedule.append((after_class, recovery_end, "🏡 Return home and settle in"))
+            now = recovery_end
+        else:
+            now = after_class
+
+    remaining_time = int((end - now).total_seconds() // 60)
+    if remaining_time <= 0 or not (subjects or test_subjects):
+        st.warning("Not enough time to plan a study schedule today or no subjects selected.")
+    else:
+        all_study_subjects = list(set(subjects + test_subjects))
+
+        weights = {}
+        for subj in all_study_subjects:
+            if subj in test_subjects:
+                weights[subj] = 90
+            else:
+                weights[subj] = 60
+
+        total_alloc = sum(weights.values())
+        max_schedule = min(remaining_time, total_alloc)
+        adjusted_weights = {k: int((v / total_alloc) * max_schedule) for k, v in weights.items()}
+
+        stretch_interval = 30
+        last_stretch = now
+
+        for subj, minutes in adjusted_weights.items():
+            max_chunks = minutes // 30
+            chunk_time = 30
+            for _ in range(max_chunks):
+                if now + datetime.timedelta(minutes=chunk_time) > end:
+                    break
+
+                if (now - last_stretch).total_seconds() >= stretch_interval * 60:
+                    break_end = now + datetime.timedelta(minutes=5)
+                    schedule.append((now, break_end, "🤸 Stretch Break - Look 20 feet away for 20 seconds, stretch your arms and legs, and drink a glass of water!"))
+                    now = break_end
+                    last_stretch = now
+
+                end_block = now + datetime.timedelta(minutes=chunk_time)
+                schedule.append((now, end_block, f"📘 Study: {subj}"))
+                now = end_block
+
+    st.success("✅ Here's your personalized study plan for today!")
+    for start_time, end_time, activity in schedule:
+        start_fmt = start_time.strftime("%I:%M %p")
+        end_fmt = end_time.strftime("%I:%M %p")
+
+        if "Study:" in activity:
+            st.markdown(f'''<div style="background-color:#D0EBFF;padding:12px;border-radius:10px;"><h4 style="color:#084298;font-size:20px;">🕒 {start_fmt} - {end_fmt}: <b>{activity}</b></h4></div>''', unsafe_allow_html=True)
+        elif "Stretch Break" in activity:
+            st.markdown(f'''<div style="background-color:#D1E7DD;padding:8px;border-radius:8px;"><h5 style="color:#0F5132;font-size:14px;border-top:1px solid #ccc;border-bottom:1px solid #ccc;">🕒 {start_fmt} - {end_fmt}: {activity}</h5></div>''', unsafe_allow_html=True)
+        else:
+            st.markdown(f'''<div style="background-color:#E2F0D9;padding:10px;border-radius:10px;"><h4 style="color:#2E7D32;">🕒 {start_fmt} - {end_fmt}: {activity}</h4></div>''', unsafe_allow_html=True)
+
+    st.info("🌟 You’ve crushed it! You finished all your work today. Great job!")
