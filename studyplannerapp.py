@@ -2,7 +2,7 @@ import streamlit as st
 import datetime
 import random
 
-st.title("📚 8th Grade Smart Study Planner")
+st.title("📚 Middle School Smart Study Planner")
 
 # Step 1: Input
 all_subjects = ["Math", "Science", "ELA", "Texas History", "Spanish", "Computer Science"]
